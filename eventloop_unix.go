@@ -125,12 +125,6 @@ func (el *eventloop) loopOpen(c *conn) error {
 }
 
 func (el *eventloop) loopRead(c *conn) error {
-	// If there is pending data in outbound buffer, then we should omit this readable event
-	// and prioritize the writable events to achieve a higher performance.
-	if !c.opened || !c.outboundBuffer.IsEmpty() {
-		return nil
-	}
-
 	n, err := unix.Read(c.fd, el.packet)
 	if n == 0 || err != nil {
 		if err == unix.EAGAIN {
@@ -171,10 +165,6 @@ func (el *eventloop) loopRead(c *conn) error {
 }
 
 func (el *eventloop) loopWrite(c *conn) error {
-	if c.outboundBuffer.IsEmpty() {
-		return nil
-	}
-
 	el.eventHandler.PreWrite()
 
 	head, tail := c.outboundBuffer.LazyReadAll()
@@ -209,7 +199,8 @@ func (el *eventloop) loopWrite(c *conn) error {
 
 func (el *eventloop) loopCloseConn(c *conn, err error) (rerr error) {
 	if !c.opened {
-		return fmt.Errorf("the fd=%d in event-loop(%d) is already closed, skipping it", c.fd, el.idx)
+		//return fmt.Errorf("the fd=%d in event-loop(%d) is already closed, skipping it", c.fd, el.idx)
+		return nil
 	}
 
 	// Send residual data in buffer back to client before actually closing the connection.

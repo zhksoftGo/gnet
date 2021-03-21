@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/panjf2000/gnet/errors"
+	"github.com/panjf2000/gnet/internal"
 	"github.com/panjf2000/gnet/internal/logging"
 )
 
@@ -160,6 +161,7 @@ type (
 		// OnOpened fires when a new connection has been opened.
 		// The parameter:c has information about the connection such as it's local and remote address.
 		// Parameter:out is the return value which is going to be sent back to the client.
+		// It is generally not recommended to send large amounts of data back to the client in OnOpened.
 		//
 		// Note that the bytes returned by OnOpened will be sent back to client without being encoded.
 		OnOpened(c Conn) (out []byte, action Action)
@@ -259,6 +261,12 @@ func Serve(eventHandler EventHandler, protoAddr string, opts ...Option) (err err
 		logging.DefaultLogger.Errorf("too many event-loops under LockOSThread mode, should be less than 10,000 "+
 			"while you are trying to set up %d\n", options.NumEventLoop)
 		return errors.ErrTooManyEventLoopThreads
+	}
+
+	if rbc := options.ReadBufferCap; rbc <= 0 {
+		options.ReadBufferCap = 0x4000
+	} else {
+		options.ReadBufferCap = internal.CeilToPowerOfTwo(rbc)
 	}
 
 	network, addr := parseProtoAddr(protoAddr)

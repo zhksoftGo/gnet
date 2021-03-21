@@ -76,6 +76,8 @@ func newTCPConn(fd int, el *eventloop, sa unix.Sockaddr, remoteAddr net.Addr) (c
 	return
 }
 
+var emptyBuffer = ringbuffer.New(0)
+
 func (c *conn) releaseTCP() {
 	c.opened = false
 	c.sa = nil
@@ -86,7 +88,7 @@ func (c *conn) releaseTCP() {
 	prb.Put(c.inboundBuffer)
 	prb.Put(c.outboundBuffer)
 	c.inboundBuffer = nil
-	c.outboundBuffer = nil
+	c.outboundBuffer = emptyBuffer
 	bytebuffer.Put(c.byteBuffer)
 	c.byteBuffer = nil
 }
