@@ -19,6 +19,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+//go:build linux || freebsd || dragonfly || darwin
 // +build linux freebsd dragonfly darwin
 
 package gnet
@@ -27,7 +28,7 @@ import (
 	"net"
 	"os"
 
-	"github.com/panjf2000/gnet/internal/netpoll"
+	"github.com/panjf2000/gnet/internal/socket"
 	"github.com/panjf2000/gnet/pool/bytebuffer"
 	prb "github.com/panjf2000/gnet/pool/ringbuffer"
 	"github.com/panjf2000/gnet/ringbuffer"
@@ -50,30 +51,16 @@ type conn struct {
 }
 
 func newTCPConn(fd int, el *eventloop, sa unix.Sockaddr, remoteAddr net.Addr) (c *conn) {
-	c = &conn{
+	return &conn{
 		fd:             fd,
 		sa:             sa,
 		loop:           el,
 		codec:          el.svr.codec,
+		localAddr:      el.ln.lnaddr,
+		remoteAddr:     remoteAddr,
 		inboundBuffer:  prb.Get(),
 		outboundBuffer: prb.Get(),
 	}
-	c.localAddr = el.ln.lnaddr
-	c.remoteAddr = remoteAddr
-
-	if el.svr.ln.network != "tcp" {
-		return
-	}
-
-	var noDelay bool
-	switch el.svr.opts.TCPNoDelay {
-	case TCPNoDelay:
-		noDelay = true
-	case TCPDelay:
-	}
-	_ = netpoll.SetNoDelay(fd, noDelay)
-	_ = netpoll.SetKeepAlive(fd, el.svr.opts.TCPKeepAlive)
-	return
 }
 
 var emptyBuffer = ringbuffer.New(0)
@@ -98,7 +85,7 @@ func newUDPConn(fd int, el *eventloop, sa unix.Sockaddr) *conn {
 		fd:         fd,
 		sa:         sa,
 		localAddr:  el.ln.lnaddr,
-		remoteAddr: netpoll.SockaddrToUDPAddr(sa),
+		remoteAddr: socket.SockaddrToUDPAddr(sa),
 	}
 }
 
@@ -234,11 +221,11 @@ func (c *conn) BufferLength() int {
 }
 
 func (c *conn) AsyncWrite(buf []byte) error {
-	return c.loop.poller.Trigger(func() (err error) {
+	return c.loop.poller.Trigger(func() error {
 		if c.opened {
-			err = c.write(buf)
+			return c.write(buf)
 		}
-		return
+		return nil
 	})
 }
 
